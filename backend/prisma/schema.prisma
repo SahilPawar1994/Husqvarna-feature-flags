@@ -1,0 +1,74 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Environment {
+  DEV
+  STAGING
+  PROD
+}
+
+enum AuditAction {
+  CREATED
+  TOGGLED
+}
+
+enum NotificationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model FeatureFlag {
+  id          String      @id @default(uuid())
+  key         String
+  description String
+  environment Environment
+  enabled     Boolean     @default(false)
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  auditLogs   AuditLog[]
+  notifications NotificationJob[]
+
+  @@unique([key, environment])
+  @@index([environment, enabled])
+}
+
+model AuditLog {
+  id            String      @id @default(uuid())
+  flagId        String
+  actor         String
+  action        AuditAction
+  previousState Json?
+  newState      Json
+  timestamp     DateTime    @default(now())
+
+  flag FeatureFlag @relation(fields: [flagId], references: [id], onDelete: Restrict)
+
+  @@index([timestamp])
+  @@index([flagId, timestamp])
+}
+
+model NotificationJob {
+  id          String             @id @default(uuid())
+  flagId      String
+  status      NotificationStatus @default(PENDING)
+  payload     Json
+  attempts    Int                @default(0)
+  lastError   String?
+  createdAt   DateTime           @default(now())
+  processedAt DateTime?
+
+  flag FeatureFlag @relation(fields: [flagId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+}
